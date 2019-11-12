@@ -1,30 +1,33 @@
 from job import Job
 
 class Pipeline(object):
-    def __init__(self, *, num_jobs, chaos=0, max_exceptions=50):
-        self.chaos          = chaos
-        self.is_working     = True
-        self.max_exceptions = max_exceptions
-        self.num_jobs       = num_jobs
-        self.processed_jobs = 0
-        self.failed_jobs    = 0
+    def __init__(self, *, num_jobs, chaos=0, max_exceptions=50, max_failure_rate=.5):
+        self.num_jobs         = num_jobs
+        self.chaos            = chaos
+        self.max_exceptions   = max_exceptions
+        self.max_failure_rate = max_failure_rate
+        self.processed_jobs   = 0
+        self.failed_jobs      = 0
+        self.is_working       = True
 
     def run(self):
         for idx in range(self.num_jobs):
-            j = Job(name=f"job-{idx}", chaos = self.chaos)
+            j = Job(name=f"job-{idx}", chaos=self.chaos)
             self.processed_jobs += 1
-            self.is_working = j.num_exceptions < self.max_exceptions
-            if not self.is_working:
+            if self.has_failing_job(j):
+                j.succeeded = False
                 self.failed_jobs += 1
-                j.succeeded = False 
 
             yield j
 
+            if self.has_too_many_failed_jobs():
+                self.is_working = False
+                return
 
-            #  if not self.is_working:
-            #      print("--------------")
-            #      print("pipeline working", self.is_working)
-            #      print("bytes", j.num_bytes)
-            #      print("seconds", j.num_seconds)
-            #      print("records", j.num_records)
-            #      print("exceptions", j.num_exceptions)
+    def has_failing_job(self, job):
+        return job.num_exceptions >= self.max_exceptions
+
+    def has_too_many_failed_jobs(self):
+        return (self.failed_jobs / self.num_jobs) >= self.max_failure_rate
+
+
